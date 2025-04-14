@@ -1,0 +1,19 @@
+{
+  "services": [
+    { "nom": "Coupe classique homme", "prix": 20, "duree": "30 minutes" },
+    { "nom": "Coupe dégradé à blanc", "prix": 25, "duree": "40 minutes" },
+    { "nom": "Taille de barbe", "prix": 15, "duree": "20 minutes" },
+    { "nom": "Soin capillaire + massage", "prix": 30, "duree": "45 minutes" },
+    { "nom": "Pack coupe + barbe", "prix": 35, "duree": "1 heure" }
+  ],
+  "horaires": "Lundi à samedi de 10h à 20h. Fermé le dimanche.",
+  "reglement": "Les rendez-vous doivent être annulés au moins 3h à l’avance. Paiement par carte ou en espèces accepté. Aucun retard de plus de 10 minutes n'est toléré.",
+  "tendances": [
+    "Dégradé à blanc texturé avec frange effilée",
+    "Coupe crop moderne avec effet naturel",
+    "Coiffure mi-longue inspirée des années 90 avec raie centrale",
+    "Dégradé haut fondu avec dessins artistiques",
+    "Coloration subtile : reflets caramel, gris cendré, ou effet balayage léger",
+    "Retour du look naturel avec volume sur le dessus et côtés courts"
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "name": "memphis-chatbot",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "dotenv": "^16.5.0",
+    "openai": "^4.93.0",
+    "readline-sync": "^1.4.10"
+  }
+}
