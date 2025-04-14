@@ -1,58 +1,66 @@
 require('dotenv').config();
 const OpenAI = require('openai');
-const readline = require('readline-sync');
+const express = require('express');
+const bodyParser = require('body-parser');
+const { MessagingResponse } = require('twilio').twiml;
 const fs = require('fs');
 
+// 🔒 Lecture des données du salon (services, horaires, etc.)
 const salonData = JSON.parse(fs.readFileSync('./salon.json', 'utf8'));
 
+// 🔑 Connexion OpenAI via la clé stockée dans Render (variable d’environnement)
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// Ajout des tendances dans le prompt
+// 🧠 Prompt système : infos salon + ton pro
 const SYSTEM_PROMPT = `
-Tu es un assistant professionnel et expert coiffure pour le salon MEMPHIS CUT.
-Nous sommes en 2025. Tu es à jour sur les dernières tendances capillaires de cette année.
-
-Tu aides les clients de façon chaleureuse, précise et professionnelle :
-- Tu réponds aux questions sur les services, tarifs, horaires
-- Tu proposes des conseils personnalisés selon leur style ou morphologie
-- Tu expliques les tendances actuelles de 2025 si on te les demande
-- Tu peux proposer un rendez-vous et t'assurer que le service demandé est possible
-
-Voici les informations du salon :
-Services : ${salonData.services.map(s => `\n- ${s.nom} : ${s.prix}€ (${s.duree})`).join('')}
+Tu es un assistant professionnel du salon de coiffure MEMPHIS CUT (2025). 
+Services :
+${salonData.services.map(s => `- ${s.nom} : ${s.prix}€ (${s.duree})`).join('\n')}
 Horaires : ${salonData.horaires}
 Règlement : ${salonData.reglement}
-Tendances 2025 : ${salonData.tendances.map(t => `\n- ${t}`).join('')}
-
-Tu réponds de façon fluide et naturelle comme un vrai assistant client très pro.
+Tendances :
+${salonData.tendances.map(t => `- ${t}`).join('\n')}
+Réponds toujours de manière professionnelle, chaleureuse, et concise.
 `;
 
-const messages = [
-  { role: 'system', content: SYSTEM_PROMPT }
-];
+const app = express();
+app.use(bodyParser.urlencoded({ extended: false }));
 
-async function chat() {
-  console.log("💈 Chatbot MEMPHIS CUT est en ligne. Tapez 'exit' pour quitter.\n");
+// 🟢 Route appelée par Twilio quand un message WhatsApp est reçu
+app.post('/whatsapp', async (req, res) => {
+  const userMsg = req.body.Body;
 
-  while (true) {
-    const userInput = readline.question('👤 Vous: ');
-    if (userInput.toLowerCase() === 'exit') break;
-
-    messages.push({ role: 'user', content: userInput });
-
-    const chatCompletion = await openai.chat.completions.create({
+  try {
+    const response = await openai.chat.completions.create({
       model: 'gpt-4o',
-      messages: messages,
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: userMsg }
+      ],
     });
 
-    const reply = chatCompletion.choices[0].message.content;
-    console.log(`💬 Memphis Cut: ${reply}\n`);
+    const botReply = response.choices[0].message.content;
 
-    messages.push({ role: 'assistant', content: reply });
+    const twiml = new MessagingResponse();
+    twiml.message(botReply);
+
+    res.writeHead(200, { 'Content-Type': 'text/xml' });
+    res.end(twiml.toString());
+  } catch (error) {
+    console.error("❌ Erreur OpenAI :", error);
+    const twiml = new MessagingResponse();
+    twiml.message("Désolé, une erreur est survenue. Veuillez réessayer plus tard.");
+    res.writeHead(200, { 'Content-Type': 'text/xml' });
+    res.end(twiml.toString());
   }
-}
+});
 
-chat();
+// 🟣 Lance le serveur (Render écoutera sur ce port)
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`📲 Memphis Cut bot en ligne sur http://localhost:${PORT}`);
+});
+
 
