@@ -45,7 +45,7 @@ app.post('/whatsapp', async (req, res) => {
     if (numMedia > 0 && mediaUrl) {
       console.log('📷 Image reçue :', mediaUrl);
 
-      // 🔐 Télécharger l'image depuis Twilio (protégée par un mot de passe)
+      // 🔐 Télécharger l'image protégée depuis Twilio
       const response = await axios.get(mediaUrl, {
         responseType: 'arraybuffer',
         auth: {
@@ -54,23 +54,25 @@ app.post('/whatsapp', async (req, res) => {
         },
       });
 
-      // 🧬 Convertir en base64 pour GPT-4
-      const contentType = response.headers['content-type'];
-      const base64Image = Buffer.from(response.data).toString('base64');
-      const imageData = `data:${contentType};base64,${base64Image}`;
+      // ✅ Détecter le bon type MIME (jpg, png, etc.)
+      const mimeType = mime.lookup(mediaUrl) || 'image/jpeg';
 
+      // 🔄 Transformer en base64
+      const base64Image = Buffer.from(response.data).toString('base64');
+      const imageData = `data:${mimeType};base64,${base64Image}`;
+
+      // 🧠 Envoyer à GPT-4o
       messages = [
         { role: 'system', content: SYSTEM_PROMPT },
         {
           role: 'user',
           content: [
-            { type: 'text', text: "Voici une image envoyée par un client. Peux-tu l’analyser et proposer une coupe adaptée ?" },
+            { type: 'text', text: "Voici une photo envoyée par un client. Analyse-la et propose une coupe ou un style adapté." },
             { type: 'image_url', image_url: { url: imageData } }
           ]
         }
       ];
     } else {
-      // 💬 Message texte classique
       messages = [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: userMsg }
@@ -85,8 +87,8 @@ app.post('/whatsapp', async (req, res) => {
     const botReply = gptResponse.choices[0].message.content;
     twiml.message(botReply);
   } catch (err) {
-    console.error('❌ Erreur OpenAI ou téléchargement image :', err.message);
-    twiml.message("Désolé, je n’ai pas pu analyser cette image. Réessaie ou envoie une autre photo.");
+    console.error('❌ Erreur :', err.message);
+    twiml.message("Désolé, je n’ai pas pu analyser cette image. Essaie avec une autre ou envoie un message.");
   }
 
   res.writeHead(200, { 'Content-Type': 'text/xml' });
@@ -94,6 +96,5 @@ app.post('/whatsapp', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`📲 Serveur Memphis Cut en ligne sur http://localhost:${PORT}`);
+  console.log(`📲 Serveur Memphis Cut actif sur http://localhost:${PORT}`);
 });
-
