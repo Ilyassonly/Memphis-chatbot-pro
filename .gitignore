@@ -1,0 +1,16 @@
+# 🔒 Fichiers à ne pas pousser sur GitHub
+.env
+node_modules/
+.DS_Store
+
+# Fichiers de build
+dist/
+build/
+coverage/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Logs et autres
+*.log
+
