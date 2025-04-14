@@ -5,6 +5,7 @@ const { MessagingResponse } = require('twilio').twiml;
 const OpenAI = require('openai');
 const fs = require('fs');
 const axios = require('axios');
+const FormData = require('form-data'); // 👈 pour l’envoi ImgBB
 
 const salonData = JSON.parse(fs.readFileSync('./salon.json', 'utf8'));
 
@@ -44,7 +45,7 @@ app.post('/whatsapp', async (req, res) => {
     if (numMedia > 0 && mediaUrl) {
       console.log('📷 Image reçue via Twilio :', mediaUrl);
 
-      // 1. Télécharger l'image depuis Twilio
+      // 1. Télécharger l’image depuis Twilio
       const imgResponse = await axios.get(mediaUrl, {
         responseType: 'arraybuffer',
         auth: {
@@ -53,27 +54,28 @@ app.post('/whatsapp', async (req, res) => {
         },
       });
 
-      // 2. Encoder l'image en base64
+      // 2. Convertir en base64
       const base64Image = Buffer.from(imgResponse.data).toString('base64');
 
-      // 3. L’envoyer sur ImgBB
-      const imgbbUpload = await axios.post('https://api.imgbb.com/1/upload', null, {
-        params: {
-          key: process.env.IMGBB_API_KEY,
-          image: base64Image,
-        },
+      // 3. Envoyer à ImgBB via FormData
+      const form = new FormData();
+      form.append('key', process.env.IMGBB_API_KEY);
+      form.append('image', base64Image);
+
+      const imgbbUpload = await axios.post('https://api.imgbb.com/1/upload', form, {
+        headers: form.getHeaders(),
       });
 
       const imgbbUrl = imgbbUpload.data.data.url;
-      console.log('🖼️ Image hébergée publiquement :', imgbbUrl);
+      console.log('🖼️ Image publique hébergée :', imgbbUrl);
 
-      // 4. Préparer le message pour GPT-4o avec le lien public
+      // 4. Créer le message pour GPT-4o
       messages = [
         { role: 'system', content: SYSTEM_PROMPT },
         {
           role: 'user',
           content: [
-            { type: 'text', text: "Voici une image envoyée par un client. Peux-tu la décrire et proposer un style adapté ?" },
+            { type: 'text', text: "Voici une image envoyée par un client. Peux-tu la décrire et suggérer une coupe adaptée ?" },
             { type: 'image_url', image_url: { url: imgbbUrl } }
           ]
         }
@@ -85,7 +87,6 @@ app.post('/whatsapp', async (req, res) => {
       ];
     }
 
-    // Appel à GPT-4o
     const gptResponse = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: messages,
@@ -94,8 +95,8 @@ app.post('/whatsapp', async (req, res) => {
     const botReply = gptResponse.choices[0].message.content;
     twiml.message(botReply);
   } catch (err) {
-    console.error('❌ Erreur traitement image ou GPT :', err.message);
-    twiml.message("Désolé, je n'ai pas pu analyser l'image. Veux-tu réessayer avec une autre ou poser ta question autrement ?");
+    console.error('❌ Erreur GPT ou ImgBB :', err.message);
+    twiml.message("Désolé, je n'ai pas pu analyser l'image. Veux-tu réessayer ou envoyer une autre photo ?");
   }
 
   res.writeHead(200, { 'Content-Type': 'text/xml' });
@@ -105,3 +106,4 @@ app.post('/whatsapp', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`📲 Serveur Memphis Cut actif sur http://localhost:${PORT}`);
 });
+
