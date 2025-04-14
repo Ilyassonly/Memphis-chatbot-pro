@@ -4,6 +4,8 @@ const bodyParser = require('body-parser');
 const { MessagingResponse } = require('twilio').twiml;
 const OpenAI = require('openai');
 const fs = require('fs');
+const axios = require('axios');
+const mime = require('mime-types');
 
 const salonData = JSON.parse(fs.readFileSync('./salon.json', 'utf8'));
 
@@ -25,61 +27,73 @@ Réponds toujours de manière professionnelle, chaleureuse, et concise.
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Permet de lire les données envoyées par Twilio
 app.use(bodyParser.urlencoded({ extended: false }));
 
-// Pour test rapide (Render, navigateur, etc.)
 app.get('/', (req, res) => {
   res.send('Bot Memphis Cut est en ligne 🧠✂️');
 });
 
-// Route appelée par Twilio
 app.post('/whatsapp', async (req, res) => {
   const userMsg = req.body.Body;
   const mediaUrl = req.body.MediaUrl0;
   const numMedia = parseInt(req.body.NumMedia || '0', 10);
+  const twiml = new MessagingResponse();
 
   try {
     let messages;
 
     if (numMedia > 0 && mediaUrl) {
-      // Si une image est reçue
+      console.log('📷 Image reçue :', mediaUrl);
+
+      // 🔐 Télécharger l'image depuis Twilio (protégée par un mot de passe)
+      const response = await axios.get(mediaUrl, {
+        responseType: 'arraybuffer',
+        auth: {
+          username: process.env.TWILIO_ACCOUNT_SID,
+          password: process.env.TWILIO_AUTH_TOKEN,
+        },
+      });
+
+      // 🧬 Convertir en base64 pour GPT-4
+      const contentType = response.headers['content-type'];
+      const base64Image = Buffer.from(response.data).toString('base64');
+      const imageData = `data:${contentType};base64,${base64Image}`;
+
       messages = [
         { role: 'system', content: SYSTEM_PROMPT },
         {
           role: 'user',
           content: [
-            { type: 'text', text: "Voici une image envoyée par un client. Décris ce que tu vois et propose un style ou une coupe adaptée :" },
-            { type: 'image_url', image_url: { url: mediaUrl } }
+            { type: 'text', text: "Voici une image envoyée par un client. Peux-tu l’analyser et proposer une coupe adaptée ?" },
+            { type: 'image_url', image_url: { url: imageData } }
           ]
         }
       ];
     } else {
-      // Si c'est un message texte
+      // 💬 Message texte classique
       messages = [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: userMsg }
       ];
     }
 
-    const response = await openai.chat.completions.create({
+    const gptResponse = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: messages,
     });
 
-    const botReply = response.choices[0].message.content;
-
-    const twiml = new MessagingResponse();
+    const botReply = gptResponse.choices[0].message.content;
     twiml.message(botReply);
-    res.writeHead(200, { 'Content-Type': 'text/xml' });
-    res.end(twiml.toString());
   } catch (err) {
-    console.error('❌ Erreur OpenAI :', err.message);
-    res.status(500).send('Erreur serveur');
+    console.error('❌ Erreur OpenAI ou téléchargement image :', err.message);
+    twiml.message("Désolé, je n’ai pas pu analyser cette image. Réessaie ou envoie une autre photo.");
   }
+
+  res.writeHead(200, { 'Content-Type': 'text/xml' });
+  res.end(twiml.toString());
 });
 
 app.listen(PORT, () => {
-  console.log(`📲 Serveur WhatsApp actif sur http://localhost:${PORT}`);
+  console.log(`📲 Serveur Memphis Cut en ligne sur http://localhost:${PORT}`);
 });
 
