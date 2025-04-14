@@ -25,37 +25,38 @@ Réponds toujours de manière professionnelle, chaleureuse, et concise.
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Permet de lire les données envoyées par Twilio
 app.use(bodyParser.urlencoded({ extended: false }));
 
-// ✅ Message d’accueil pour vérifier que le bot tourne
+// Pour test rapide (Render, navigateur, etc.)
 app.get('/', (req, res) => {
   res.send('Bot Memphis Cut est en ligne 🧠✂️');
 });
 
+// Route appelée par Twilio
 app.post('/whatsapp', async (req, res) => {
-  const numMedia = parseInt(req.body.NumMedia || '0');
   const userMsg = req.body.Body;
-  const twiml = new MessagingResponse();
+  const mediaUrl = req.body.MediaUrl0;
+  const numMedia = parseInt(req.body.NumMedia || '0', 10);
 
   try {
-    let userInput;
+    let messages;
 
-    if (numMedia > 0) {
-      const imageUrl = req.body.MediaUrl0;
-      console.log('📷 Image reçue :', imageUrl);
-
-      userInput = [
+    if (numMedia > 0 && mediaUrl) {
+      // Si une image est reçue
+      messages = [
         { role: 'system', content: SYSTEM_PROMPT },
         {
           role: 'user',
           content: [
-            { type: 'text', text: 'Voici une image, peux-tu l’analyser ?' },
-            { type: 'image_url', image_url: { url: imageUrl } }
+            { type: 'text', text: "Voici une image envoyée par un client. Décris ce que tu vois et propose un style ou une coupe adaptée :" },
+            { type: 'image_url', image_url: { url: mediaUrl } }
           ]
         }
       ];
     } else {
-      userInput = [
+      // Si c'est un message texte
+      messages = [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: userMsg }
       ];
@@ -63,21 +64,22 @@ app.post('/whatsapp', async (req, res) => {
 
     const response = await openai.chat.completions.create({
       model: 'gpt-4o',
-      messages: userInput,
+      messages: messages,
     });
 
     const botReply = response.choices[0].message.content;
+
+    const twiml = new MessagingResponse();
     twiml.message(botReply);
+    res.writeHead(200, { 'Content-Type': 'text/xml' });
+    res.end(twiml.toString());
   } catch (err) {
     console.error('❌ Erreur OpenAI :', err.message);
-    twiml.message("Erreur : je n’ai pas pu traiter votre demande. Veuillez réessayer.");
+    res.status(500).send('Erreur serveur');
   }
-
-  res.writeHead(200, { 'Content-Type': 'text/xml' });
-  res.end(twiml.toString());
 });
 
 app.listen(PORT, () => {
-  console.log(`📲 Serveur Memphis Cut en ligne sur http://localhost:${PORT}`);
+  console.log(`📲 Serveur WhatsApp actif sur http://localhost:${PORT}`);
 });
 
